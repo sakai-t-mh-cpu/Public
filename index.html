@@ -1,304 +1,69 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>手・顔認識</title>
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>手・顔認識 音声スイッチ</title>
 <style>
-  * { box-sizing: border-box; }
-  html, body { margin: 0; width: 100%; min-height: 100%; font-family: system-ui, sans-serif; background: #111; color: #fff; }
-  body { padding: 12px; }
-  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
-  select, button { font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 8px; border: 1px solid #777; }
-  select { background: #222; color: #fff; flex: 1 1 220px; min-width: 160px; }
-  button { background: #f2f2f2; color: #111; cursor: pointer; }
-  button:disabled { opacity: .5; cursor: default; }
-  #status { font-size: 14px; color: #ddd; min-height: 1.5em; margin: 4px 0 10px; }
-  .stage { position: relative; width: 100%; max-width: 1200px; margin: 0 auto; background: #000; overflow: hidden; border-radius: 8px; }
-  canvas { display: block; width: 100%; height: auto; }
-  video { display: none; }
-  .counts { display: flex; gap: 18px; flex-wrap: wrap; font-size: 16px; padding: 10px 2px 0; }
-  .note { color: #bbb; font-size: 12px; line-height: 1.5; margin-top: 10px; }
-  @media (max-width: 600px) { body { padding: 8px; } .counts { font-size: 14px; } }
-</style>
-</head>
-<body>
-  <div class="controls">
-    <select id="cameraSelect" aria-label="カメラ選択">
-      <option value="">カメラを検索しています…</option>
-    </select>
-    <button id="refreshBtn" type="button">カメラ更新</button>
-    <button id="startBtn" type="button">カメラを起動</button>
-    <button id="stopBtn" type="button" disabled>停止</button>
-  </div>
-  <div id="status" role="status">「カメラを起動」を押してください。初回はカメラの使用を許可してください。</div>
-  <div class="stage">
-    <video id="video" playsinline muted autoplay></video>
-    <canvas id="output" width="1280" height="720"></canvas>
-  </div>
-  <div class="counts">
-    <span id="faceCount">顔：0</span>
-    <span id="handCount">手：0</span>
-    <span id="handSide">左右：—</span>
-  </div>
-  <div class="note">外付けカメラは「カメラ選択」から選んでください。映像の左右反転は表示のみです。認識処理にはインターネット接続が必要です。</div>
-
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+*{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;padding:12px;background:#f5f6f7;color:#222}.panel{background:#fff;border:1px solid #ddd;border-radius:10px;padding:12px;margin-bottom:12px}.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0}button,select,input,textarea{font:inherit}button{padding:8px 12px;border:1px solid #999;border-radius:7px;background:#fff}button.primary{background:#1769aa;color:#fff}#status,.small{font-size:13px;line-height:1.5;white-space:pre-wrap;color:#555}#stage{background:#111;border-radius:8px;overflow:hidden}canvas{display:block;width:100%;height:auto}.hands{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}.hand{border:1px solid #ddd;border-radius:8px;padding:10px}.hand h3{margin:0 0 6px}.value{font-size:28px;font-weight:700}.plus{color:#087b43}.minus{color:#b42318}textarea{width:100%;min-height:55px;border:1px solid #aaa;border-radius:6px;padding:7px}input[type=number]{width:75px}input[type=range]{width:min(100%,280px)}.meter{height:10px;background:#e8eaed;border-radius:9px;overflow:hidden;margin:6px 0}.meter span{display:block;height:100%;width:0;background:#1769aa}.calstatus{font-size:13px;color:#444}
+</style></head><body>
+<h2 style="font-size:20px;margin:0 0 12px">手・顔認識 音声スイッチ</h2>
+<div class="panel">
+<div class="row"><label><input type="radio" name="mode" value="face">顔だけ</label><label><input type="radio" name="mode" value="hand" checked>手だけ</label><label><input type="radio" name="mode" value="both">顔＋手</label></div>
+<div class="row"><b>表示する指：</b><label><input type="checkbox" data-f="thumb" checked>親指</label><label><input type="checkbox" data-f="index" checked>人差し指</label><label><input type="checkbox" data-f="middle" checked>中指</label><label><input type="checkbox" data-f="ring" checked>薬指</label><label><input type="checkbox" data-f="pinky" checked>小指</label></div>
+<div class="row"><label>カメラ <select id="cams"><option value="">自動選択</option></select></label><button id="refresh">カメラ更新</button><button id="start" class="primary">カメラを起動</button><button id="stop">停止</button></div><div id="status">カメラを起動してください。</div>
+<p class="small">iPadで外付けカメラを使う場合：USB接続→「カメラ更新」→USBを抜き差し→「カメラを起動」をお試しください。</p></div>
+<div id="stage"><canvas id="view" width="640" height="480"></canvas></div>
+<div class="panel"><b>左右の手：現在の形を0に設定し、動きの大きさを数値化</b>
+<p class="small">最初に、基準にしたい手の形をカメラに映し、左右それぞれの「現在の指形を0に設定」を押してください。基準形から指が広がる方向を＋、握る方向を－として、変化量を1～10で表示します。設定した段階に達した時に、対応する文字を読み上げます。判定は手の形の推定値に基づくため、カメラの角度などで個人差があります。</p>
+<div class="hands">
+<div class="hand"><h3>右手</h3><div id="rv" class="value">0</div><div>状態：<span id="rs">未検出</span></div><div class="meter"><span id="rbar"></span></div><div class="calstatus" id="rcal">基準値：未設定（起動時の形を仮の基準にします）</div><div class="row"><button id="rcalbtn" class="primary">現在の指形を0に設定</button><button id="rreset">基準を解除</button></div>
+<div class="row"><label>感知する段階 <input id="rthreshold" type="range" min="1" max="10" value="1"><b id="rthresholdv">1</b></label></div>
+<label>＋1～＋10で読む文字（段階ごと）</label><div id="rplus"></div><label>－1～－10で読む文字（段階ごと）</label><div id="rminus"></div>
+</div>
+<div class="hand"><h3>左手</h3><div id="lv" class="value">0</div><div>状態：<span id="ls">未検出</span></div><div class="meter"><span id="lbar"></span></div><div class="calstatus" id="lcal">基準値：未設定（起動時の形を仮の基準にします）</div><div class="row"><button id="lcalbtn" class="primary">現在の指形を0に設定</button><button id="lreset">基準を解除</button></div>
+<div class="row"><label>感知する段階 <input id="lthreshold" type="range" min="1" max="10" value="1"><b id="lthresholdv">1</b></label></div>
+<label>＋1～＋10で読む文字（段階ごと）</label><div id="lplus"></div><label>－1～－10で読む文字（段階ごと）</label><div id="lminus"></div>
+</div></div>
+<div class="row"><label><input id="voice" type="checkbox" checked>状態が変わった時に読み上げる</label><label>安定時間(ms) <input id="stable" type="number" min="0" max="3000" step="100" value="500"></label><button id="test">音声テスト</button></div>
+<p class="small">読み上げは、設定した感知段階を越えたときに1回行います。いったん0付近に戻ってから再び段階に達すると、もう一度読み上げます。</p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script><script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 <script>
-(() => {
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('output');
-  const ctx = canvas.getContext('2d');
-  const cameraSelect = document.getElementById('cameraSelect');
-  const refreshBtn = document.getElementById('refreshBtn');
-  const startBtn = document.getElementById('startBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  const statusEl = document.getElementById('status');
-  const faceCountEl = document.getElementById('faceCount');
-  const handCountEl = document.getElementById('handCount');
-  const handSideEl = document.getElementById('handSide');
-
-  let stream = null, running = false, busy = false, starting = false, rafId = null;
-  let hands = null, faceMesh = null;
-  let latestHands = null, latestFace = null;
-  let lastVideoTime = -1;
-
-  function setStatus(s) { statusEl.textContent = s; }
-  function setButtons(active) {
-    startBtn.disabled = active;
-    stopBtn.disabled = !active;
-  }
-
-  async function refreshCameras() {
-    try {
-      // カメラ一覧取得前に許可がない場合、labelが空のことがあります。
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const cams = devices.filter(d => d.kind === 'videoinput');
-      const previous = cameraSelect.value;
-      cameraSelect.innerHTML = '';
-      if (!cams.length) {
-        const opt = document.createElement('option');
-        opt.value = ''; opt.textContent = 'カメラが見つかりません';
-        cameraSelect.appendChild(opt);
-        return;
-      }
-      cams.forEach((cam, i) => {
-        const opt = document.createElement('option');
-        opt.value = cam.deviceId;
-        opt.textContent = cam.label || `カメラ ${i + 1}`;
-        cameraSelect.appendChild(opt);
-      });
-      if (cams.some(c => c.deviceId === previous)) cameraSelect.value = previous;
-      else cameraSelect.selectedIndex = 0;
-    } catch (e) {
-      setStatus('カメラ一覧を取得できません。HTTPSのページで開いてください。');
-    }
-  }
-
-  async function makeModels() {
-    if (hands && faceMesh) return;
-    if (typeof Hands === 'undefined' || typeof FaceMesh === 'undefined') {
-      throw new Error('認識ライブラリを読み込めません。インターネット接続を確認してください。');
-    }
-    hands = new Hands({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
-    hands.setOptions({
-      maxNumHands: 2,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5
-    });
-    hands.onResults(results => { latestHands = results; });
-
-    faceMesh = new FaceMesh({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
-    faceMesh.setOptions({
-      maxNumFaces: 2,
-      refineLandmarks: true,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5
-    });
-    faceMesh.onResults(results => { latestFace = results; });
-  }
-
-  function waitForVideoReady(timeoutMs = 10000) {
-    return new Promise((resolve, reject) => {
-      if (video.readyState >= 2 && video.videoWidth > 0) return resolve();
-      let done = false;
-      const finish = (err) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        video.removeEventListener('loadeddata', onReady);
-        video.removeEventListener('canplay', onReady);
-        video.removeEventListener('error', onError);
-        err ? reject(err) : resolve();
-      };
-      const onReady = () => {
-        if (video.videoWidth > 0) finish();
-      };
-      const onError = () => finish(new Error('カメラ映像を読み込めませんでした。'));
-      const timer = setTimeout(() => finish(new Error('カメラ映像の準備がタイムアウトしました。')), timeoutMs);
-      video.addEventListener('loadeddata', onReady);
-      video.addEventListener('canplay', onReady);
-      video.addEventListener('error', onError);
-    });
-  }
-
-  async function startCamera() {
-    if (starting) return;
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setStatus('このページではカメラを利用できません。HTTPSのURLで開いてください。');
-      return;
-    }
-    starting = true;
-    startBtn.disabled = true;
-    try {
-      await stopCamera(false);
-      setStatus('認識モデルを準備しています…');
-      // モデル読み込みを先に済ませ、iPadでカメラ起動中の処理競合を減らします。
-      await makeModels();
-      setStatus('カメラを接続しています…');
-      const deviceId = cameraSelect.value;
-      const constraints = {
-        audio: false,
-        video: deviceId
-          ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-          : { width: { ideal: 1280 }, height: { ideal: 720 } }
-      };
-      const newStream = await navigator.mediaDevices.getUserMedia(constraints);
-      stream = newStream;
-      video.muted = true;
-      video.playsInline = true;
-      video.autoplay = true;
-      video.srcObject = newStream;
-      await waitForVideoReady();
-      try {
-        await video.play();
-      } catch (playError) {
-        // Safari sometimes rejects the first play() while the camera stream is settling.
-        if (playError && playError.name === 'AbortError') {
-          await waitForVideoReady(5000);
-          await video.play();
-        } else {
-          throw playError;
-        }
-      }
-      if (!stream || !stream.active) throw new Error('カメラ接続が途中で終了しました。カメラを選び直してください。');
-      await refreshCameras();
-      running = true;
-      setButtons(true);
-      startBtn.disabled = false;
-      setStatus('認識中です。手や顔をカメラに映してください。');
-      lastVideoTime = -1;
-      processFrame();
-    } catch (e) {
-      await stopCamera(false);
-      const msg = e && e.name ? `${e.name}: ` : '';
-      let advice = e.message || 'カメラを起動できませんでした。';
-      if (e.name === 'NotAllowedError' || e.name === 'SecurityError') advice = 'カメラが許可されていません。ブラウザのカメラ設定で許可し、ページを再読み込みしてください。';
-      if (e.name === 'NotFoundError') advice = 'カメラが見つかりません。接続と「カメラ更新」を確認してください。';
-      if (e.name === 'NotReadableError') advice = 'カメラを他のアプリが使用中の可能性があります。他のアプリを閉じてください。';
-      if (e.name === 'AbortError') advice = 'カメラの起動が中断されました。停止ボタンやカメラ選択を連続して操作せず、カメラを選び直して再度起動してください。';
-      setStatus(msg + advice);
-    } finally {
-      starting = false;
-      startBtn.disabled = running;
-    }
-  }
-
-  async function stopCamera(updateStatus = true) {
-    running = false;
-    busy = false;
-    if (rafId !== null) cancelAnimationFrame(rafId);
-    rafId = null;
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    stream = null;
-    video.srcObject = null;
-    latestHands = null;
-    latestFace = null;
-    setButtons(false);
-    drawEmpty();
-    if (updateStatus) setStatus('停止しました。');
-  }
-
-  function drawEmpty() {
-    ctx.save();
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.restore();
-    faceCountEl.textContent = '顔：0';
-    handCountEl.textContent = '手：0';
-    handSideEl.textContent = '左右：—';
-  }
-
-  function drawFrame() {
-    const w = canvas.width, h = canvas.height;
-    ctx.save();
-    ctx.clearRect(0, 0, w, h);
-    // Selfie-style mirror display; the source video remains unchanged for inference.
-    ctx.translate(w, 0);
-    ctx.scale(-1, 1);
-    if (video.readyState >= 2) ctx.drawImage(video, 0, 0, w, h);
-    // Face mesh: draw a light outline and eye/lip contours.
-    const faces = latestFace && latestFace.multiFaceLandmarks ? latestFace.multiFaceLandmarks : [];
-    faces.forEach(landmarks => {
-      if (typeof drawConnectors === 'function' && typeof FACEMESH_TESSELATION !== 'undefined') {
-        drawConnectors(ctx, landmarks, FACEMESH_TESSELATION, { color: 'rgba(80,220,255,0.18)', lineWidth: 1 });
-        drawConnectors(ctx, landmarks, FACEMESH_FACE_OVAL, { color: '#00e5ff', lineWidth: 2 });
-        drawConnectors(ctx, landmarks, FACEMESH_LEFT_EYE, { color: '#ffdf5d', lineWidth: 1.5 });
-        drawConnectors(ctx, landmarks, FACEMESH_RIGHT_EYE, { color: '#ffdf5d', lineWidth: 1.5 });
-        drawConnectors(ctx, landmarks, FACEMESH_LIPS, { color: '#ff6688', lineWidth: 1.5 });
-      }
-    });
-    // Hand skeleton and landmark dots.
-    const handResults = latestHands && latestHands.multiHandLandmarks ? latestHands.multiHandLandmarks : [];
-    handResults.forEach((landmarks, i) => {
-      if (typeof drawConnectors === 'function') {
-        drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: i === 0 ? '#45ff8a' : '#ff9d45', lineWidth: 4 });
-        drawLandmarks(ctx, landmarks, { color: '#ffffff', lineWidth: 1, radius: 3 });
-      }
-    });
-    ctx.restore();
-    faceCountEl.textContent = `顔：${faces.length}`;
-    handCountEl.textContent = `手：${handResults.length}`;
-    const sides = latestHands && latestHands.multiHandedness
-      ? latestHands.multiHandedness.map(x => x.label === 'Left' ? '左手' : '右手') : [];
-    handSideEl.textContent = `左右：${sides.length ? sides.join('・') : '—'}`;
-  }
-
-  async function processFrame() {
-    if (!running || busy) return;
-    rafId = requestAnimationFrame(processFrame);
-    if (video.readyState < 2 || video.currentTime === lastVideoTime) return;
-    busy = true;
-    lastVideoTime = video.currentTime;
-    try {
-      await hands.send({ image: video });
-      await faceMesh.send({ image: video });
-      drawFrame();
-    } catch (e) {
-      setStatus('認識処理でエラーが発生しました。ページを再読み込みしてください。');
-      console.error(e);
-    } finally {
-      busy = false;
-    }
-  }
-
-  refreshBtn.addEventListener('click', refreshCameras);
-  startBtn.addEventListener('click', startCamera);
-  stopBtn.addEventListener('click', () => stopCamera(true));
-  cameraSelect.addEventListener('change', async () => {
-    if (running && !starting) await startCamera();
-  });
-  window.addEventListener('pagehide', () => {
-    if (stream) stream.getTracks().forEach(t => t.stop());
-  });
-
-  drawEmpty();
-  refreshCameras();
-})();
-</script>
-</body>
-</html>
+const v=document.createElement('video');v.playsInline=true;v.muted=true;v.autoplay=true;
+const c=document.querySelector('#view'),x=c.getContext('2d'),status=document.querySelector('#status'),cams=document.querySelector('#cams');
+let stream=null,running=false,face=null,hands=null,handData=[],lastRun=0,gen=0,faceData=null;
+const names=['thumb','index','middle','ring','pinky'],chains={thumb:[0,1,2,3,4],index:[0,5,6,7,8],middle:[0,9,10,11,12],ring:[0,13,14,15,16],pinky:[0,17,18,19,20]};
+const tracker={Right:{baseline:null,candidate:null,since:0,lastAnnounced:0},Left:{baseline:null,candidate:null,since:0,lastAnnounced:0}};
+const inputMaps={Right:{plus:[],minus:[]},Left:{plus:[],minus:[]}};
+function makeTextInputs(side,prefix){let root=document.querySelector('#'+prefix+side.toLowerCase()+'');}
+function setupTextInputs(side,p){['plus','minus'].forEach(sign=>{let root=document.querySelector('#'+p+sign);for(let i=1;i<=10;i++){let row=document.createElement('div');row.className='row';row.style.margin='4px 0';let lab=document.createElement('label');lab.style.width='100%';lab.textContent=(sign==='plus'?'+':'−')+i+' ';let ta=document.createElement('input');ta.type='text';ta.style.width='100%';ta.placeholder=(sign==='plus'?'プラス':'マイナス')+i+'の時に読む文字';ta.value=(sign==='plus'?(side==='Right'?'右手を広げました':'左手を広げました'):(side==='Right'?'右手を握りました':'左手を握りました'))+'（'+(sign==='plus'?'+':'−')+i+'）';ta.id=p+sign+i;lab.appendChild(ta);row.appendChild(lab);root.appendChild(row)}})}
+setupTextInputs('Right','r');setupTextInputs('Left','l');
+function say(t){if(!document.querySelector('#voice').checked||!t.trim()||!window.speechSynthesis)return;speechSynthesis.cancel();let u=new SpeechSynthesisUtterance(t);u.lang='ja-JP';speechSynthesis.speak(u)}
+function mode(){return document.querySelector('[name=mode]:checked').value}
+function fingers(){let o={};document.querySelectorAll('[data-f]').forEach(e=>o[e.dataset.f]=e.checked);return o}
+async function refresh(){try{let ds=await navigator.mediaDevices.enumerateDevices(),old=cams.value;cams.innerHTML='<option value="">自動選択</option>';let n=0;ds.filter(d=>d.kind==='videoinput').forEach((d,i)=>{let o=document.createElement('option');o.value=d.deviceId;o.textContent=d.label||`カメラ ${i+1}`;cams.append(o);n++});if([...cams.options].some(o=>o.value===old))cams.value=old;status.textContent=n?`カメラを${n}台確認しました。起動できます。`:'カメラがまだ表示されません。「カメラ更新」を押してください。'}catch(e){status.textContent='カメラ一覧を取得できません。HTTPSで開き、カメラ使用を許可してください。'}}
+function models(){if(!face){face=new FaceMesh({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});face.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.5});face.onResults(r=>faceData=r.multiFaceLandmarks?.[0]||null)}if(!hands){hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});hands.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:.55,minTrackingConfidence:.5});hands.onResults(r=>handData=(r.multiHandLandmarks||[]).map((lm,i)=>({lm,label:r.multiHandedness?.[i]?.label||'Unknown'})))}}
+async function stop(show=true){running=false;gen++;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;v.srcObject=null;if(show)status.textContent='カメラを停止しました。'}
+async function start(){await stop(false);let my=++gen;status.textContent='カメラに接続しています…';try{if(!navigator.mediaDevices?.getUserMedia)throw Error('カメラを利用できません。HTTPSのURLで開いてください。');let cons={audio:false,video:cams.value?{deviceId:{exact:cams.value},width:{ideal:1280},height:{ideal:720}}:{facingMode:'user',width:{ideal:1280},height:{ideal:720}}};try{stream=await navigator.mediaDevices.getUserMedia(cons)}catch(e){if(!cams.value)throw e;status.textContent='選択したカメラで起動できないため、自動選択を試しています…';stream=await navigator.mediaDevices.getUserMedia({audio:false,video:true})}if(my!==gen){stream?.getTracks().forEach(t=>t.stop());return}v.srcObject=stream;await v.play();running=true;let t=Date.now();while((!v.videoWidth||v.readyState<2)&&Date.now()-t<15000)await new Promise(r=>setTimeout(r,150));if(!v.videoWidth)throw Error('映像が準備できません。カメラ更新後、USBを抜き差しして再度お試しください。');models();await refresh();status.textContent='映像を受信しています。手を映し、「現在の指形を0に設定」を押してください。';requestAnimationFrame(loop)}catch(e){running=false;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;status.textContent='カメラを起動できませんでした：'+(e.message||e.name)+'\\n使用許可と、他のアプリがカメラを使っていないか確認してください。'}}
+function d(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function extended(l,f){if(f==='thumb')return d(l[4],l[0])>d(l[2],l[0])*1.12&&d(l[4],l[5])>d(l[3],l[5])*.92;let tip={index:8,middle:12,ring:16,pinky:20}[f],pip={index:6,middle:10,ring:14,pinky:18}[f];return d(l[tip],l[0])>d(l[pip],l[0])*1.08}
+function feature(l){let out=[];names.forEach(f=>{let tip={thumb:4,index:8,middle:12,ring:16,pinky:20}[f],pip={thumb:2,index:6,middle:10,ring:14,pinky:18}[f];out.push(Math.min(1.5,Math.max(0,d(l[tip],l[0])-d(l[pip],l[0]))))});return out}
+function signedLevel(l,side){let feat=feature(l),t=tracker[side];if(!t.baseline){t.baseline=feat.slice();document.querySelector('#'+(side==='Right'?'r':'l')+'cal').textContent='基準値：自動設定（「現在の指形を0に設定」で変更できます）'}
+ let delta=feat.reduce((s,n,i)=>s+(n-t.baseline[i]),0)/5;
+ // Map average normalized landmark change to 1..10; calibrate against full open/close gesture.
+ let level=Math.round(Math.min(10,Math.abs(delta)*28));
+ if(level===0)return 0;
+ return delta>0?level:-level;
+}
+function update(side,level){let p=side==='Right'?'r':'l',s=tracker[side],el=document.querySelector('#'+p+'v'),state=document.querySelector('#'+p+'s'),bar=document.querySelector('#'+p+'bar');el.textContent=level>0?'+'+level:String(level);el.className='value '+(level>0?'plus':level<0?'minus':'');bar.style.width=(Math.abs(level)*10)+'%';bar.style.background=level>0?'#087b43':level<0?'#b42318':'#1769aa';state.textContent=level===0?'基準の形に近い':level>0?'広げる方向':'握る方向';
+ let threshold=Number(document.querySelector('#'+p+'threshold').value)||1;let eventKey=Math.abs(level)>=threshold?level>0?'plus'+Math.abs(level):'minus'+Math.abs(level):null;
+ let now=performance.now();if(!eventKey){s.candidate=null;s.lastAnnounced=0;return}if(s.candidate!==eventKey){s.candidate=eventKey;s.since=now;return}
+ let ms=Math.max(0,Math.min(3000,Number(document.querySelector('#stable').value)||0));if(now-s.since<ms||s.lastAnnounced===eventKey)return;
+ s.lastAnnounced=eventKey;speechText= document.querySelector('#'+p+(level>0?'plus':'minus')+Math.min(10,Math.abs(level))).value;say(speechText);
+}
+function line(a,b){x.beginPath();x.moveTo(a.x*c.width,a.y*c.height);x.lineTo(b.x*c.width,b.y*c.height);x.stroke()}
+function dot(p,r=3){x.beginPath();x.arc(p.x*c.width,p.y*c.height,r,0,Math.PI*2);x.fill()}
+function drawHand(l,label){let fs=fingers();x.strokeStyle=label==='Right'?'#00d084':'#ffb020';x.fillStyle=x.strokeStyle;x.lineWidth=3;[[0,1],[0,5],[0,9],[0,13],[0,17],[5,9],[9,13],[13,17]].forEach(a=>line(l[a[0]],l[a[1]]));names.forEach(f=>{if(!fs[f])return;let a=chains[f];for(let i=1;i<a.length;i++)line(l[a[i-1]],l[a[i]]);a.slice(1).forEach(i=>dot(l[i],3.5))});[0,5,9,13,17].forEach(i=>dot(l[i],4))}
+function drawFace(l){if(!l)return;x.strokeStyle='#45a3ff';x.lineWidth=1.5;[[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109,10],[33,160,158,133,153,144,33],[362,385,387,263,373,380,362],[61,146,91,181,84,17,314,405,321,375,291]].forEach(g=>{x.beginPath();g.forEach((i,j)=>{let p=l[i];j?x.lineTo(p.x*c.width,p.y*c.height):x.moveTo(p.x*c.width,p.y*c.height)});x.stroke()})}
+async function loop(){if(!running)return;let now=performance.now();if(now-lastRun>180&&v.readyState>=2){lastRun=now;try{if(mode()!=='hand')await face.send({image:v});if(mode()!=='face')await hands.send({image:v})}catch(e){status.textContent='認識処理でエラーが発生しました。通信状態を確認してください。'}}c.width=v.videoWidth||640;c.height=v.videoHeight||480;x.save();x.translate(c.width,0);x.scale(-1,1);x.drawImage(v,0,0,c.width,c.height);if(mode()!=='hand')drawFace(faceData);if(mode()!=='face'){let seen={Right:false,Left:false};handData.forEach(h=>{let side=h.label==='Right'?'Right':h.label==='Left'?'Left':null;if(!side)return;seen[side]=true;drawHand(h.lm,side);update(side,signedLevel(h.lm,side))});['Right','Left'].forEach(side=>{if(!seen[side]){document.querySelector('#'+(side==='Right'?'r':'l')+'s').textContent='未検出';tracker[side].candidate=null}})}x.restore();requestAnimationFrame(loop)}
+function calibrate(side){let h=handData.find(a=>a.label===side);if(!h){status.textContent=(side==='Right'?'右手':'左手')+'が検出されていません。カメラに手を映してから押してください。';return}tracker[side].baseline=feature(h.lm);tracker[side].candidate=null;tracker[side].lastAnnounced=0;let p=side==='Right'?'r':'l';document.querySelector('#'+p+'cal').textContent='基準値：設定済み（この形を0とします）';document.querySelector('#'+p+'v').textContent='0';document.querySelector('#'+p+'s').textContent='基準形を設定しました'}
+['Right','Left'].forEach(side=>{let p=side==='Right'?'r':'l';document.querySelector('#'+p+'calbtn').onclick=()=>calibrate(side);document.querySelector('#'+p+'reset').onclick=()=>{tracker[side].baseline=null;tracker[side].lastAnnounced=0;document.querySelector('#'+p+'cal').textContent='基準値：未設定';document.querySelector('#'+p+'v').textContent='0'};let slider=document.querySelector('#'+p+'threshold');slider.oninput=()=>document.querySelector('#'+p+'thresholdv').textContent=slider.value});
+document.querySelector('#refresh').onclick=refresh;document.querySelector('#start').onclick=start;document.querySelector('#stop').onclick=()=>stop();document.querySelector('#test').onclick=()=>say('音声テストです');document.querySelectorAll('[name=mode]').forEach(e=>e.addEventListener('change',()=>{handData=[];faceData=null;Object.values(tracker).forEach(s=>{s.candidate=null;s.lastAnnounced=0})}));if(navigator.mediaDevices?.addEventListener)navigator.mediaDevices.addEventListener('devicechange',refresh);refresh();
+</script></body></html>
