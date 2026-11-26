@@ -1,36 +1,258 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>手の動き・音声</title><style>
-*{box-sizing:border-box}body{margin:0;font:15px system-ui,sans-serif;color:#222;background:#f4f5f7}.app{display:grid;grid-template-columns:1fr 1fr;height:100vh}.left,.right{padding:12px;overflow:auto;min-width:0}.left{border-right:1px solid #ccc}.right{background:white}h1{font-size:19px;margin:0 0 10px}.panel,.hand{border:1px solid #d7dce1;border-radius:8px;padding:10px;margin-bottom:10px;background:#fff}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:7px 0}button,input,select{font:inherit}button{padding:7px 10px;border:1px solid #9ba3ab;border-radius:6px;background:white}button.primary{background:#1769aa;color:white}#status,.small{font-size:12px;color:#555;line-height:1.45;white-space:pre-wrap}canvas{display:block;width:100%;height:auto;background:#111;border-radius:8px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.hand h2{font-size:16px;margin:0 0 4px}.value{font-size:34px;font-weight:750}.plus{color:#087b43}.minus{color:#b42318}.neutral{color:#555}.bar{height:8px;background:#eee;border-radius:8px;overflow:hidden;margin:5px 0}.bar span{display:block;height:100%;width:0}.cal{width:100%;margin-top:5px}.map{display:grid;grid-template-columns:42px minmax(48px,.7fr) minmax(48px,.7fr) minmax(100px,1.6fr);gap:5px;align-items:center;margin:7px 0}.map input[type=number],.map input[type=text]{width:100%;min-width:0;padding:6px;border:1px solid #aaa;border-radius:5px}.maphead{display:grid;grid-template-columns:42px minmax(48px,.7fr) minmax(48px,.7fr) minmax(100px,1.6fr);gap:5px;font-size:12px;color:#555;margin-top:8px}.section{font-weight:700;margin:8px 0}.muted{font-size:12px;color:#666}@media(max-width:700px){.app{display:block;height:auto}.left{border-right:0;border-bottom:2px solid #ccc}.grid{grid-template-columns:1fr}}
-</style></head><body><div class="app"><section class="left"><h1>映像・カメラ（左半分）</h1><div class="panel">
-<div class="row"><label><input type="radio" name="mode" value="face">顔</label><label><input type="radio" name="mode" value="hand" checked>手</label><label><input type="radio" name="mode" value="both">顔＋手</label></div>
-<div class="row"><label><input type="checkbox" data-f="thumb" checked>親指</label><label><input type="checkbox" data-f="index" checked>人差し指</label><label><input type="checkbox" data-f="middle" checked>中指</label><label><input type="checkbox" data-f="ring" checked>薬指</label><label><input type="checkbox" data-f="pinky" checked>小指</label></div>
-<div class="row"><select id="cams"><option value="">自動選択</option></select><button id="refresh">カメラ更新</button></div><div class="row"><button id="start" class="primary">カメラを起動</button><button id="stop">停止</button></div><div id="status">カメラを起動してください。</div><p class="small">iPad外付けカメラ：USB接続→カメラ更新→USB抜き差し→カメラ起動。</p></div><canvas id="view" width="640" height="480"></canvas><div class="panel small">握った状態を映し、右側の「この握った形を0に設定」を押してください。そこから指を広げる方向を＋、さらに握る方向を－として数値化します。5mm相当の動きは手の大きさを基準にした目安です。</div></section>
-<section class="right"><h1>判定値・読み上げ設定（右半分）</h1><div class="grid">
-<div class="hand"><h2>右手</h2><div id="rv" class="value neutral">0</div><div id="rs" class="muted">未検出</div><div class="bar"><span id="rb"></span></div><div id="rc" class="muted">基準：未設定</div><button id="rcal" class="primary cal">この握った形を0に設定</button><button id="rrst" class="cal">基準を解除</button></div>
-<div class="hand"><h2>左手</h2><div id="lv" class="value neutral">0</div><div id="ls" class="muted">未検出</div><div class="bar"><span id="lb"></span></div><div id="lc" class="muted">基準：未設定</div><button id="lcal" class="primary cal">この握った形を0に設定</button><button id="lrst" class="cal">基準を解除</button></div></div>
-<div class="panel"><div class="section">右手：数値の範囲と読み上げる言葉（3項目）</div><div class="maphead"><span>項目</span><span>開始値</span><span>終了値</span><span>読み上げる言葉</span></div><div id="rmap"></div><div class="section">左手：数値の範囲と読み上げる言葉（3項目）</div><div class="maphead"><span>項目</span><span>開始値</span><span>終了値</span><span>読み上げる言葉</span></div><div id="lmap"></div></div>
-<div class="panel"><div class="row"><label><input id="voice" type="checkbox" checked>設定した数値で読み上げる</label></div><div class="row"><label>安定時間(ms) <input id="stable" type="number" min="0" max="2000" value="350" style="width:80px"></label><button id="test">音声テスト</button></div><div class="small">各項目に数値の範囲と言葉を設定します。例：開始値1・終了値3・「はい」なら、判定値が＋1～＋3の間は「はい」と読み上げます。開始値と終了値を同じ数値にすると、その数値だけに反応します。</div></div></section></div>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script><script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script><script>
-const video=document.createElement('video');video.playsInline=true;video.muted=true;video.autoplay=true;const canvas=document.querySelector('#view'),ctx=canvas.getContext('2d'),status=document.querySelector('#status'),cams=document.querySelector('#cams');
-let stream=null,running=false,faceModel=null,handModel=null,handData=[],faceData=null,lastInfer=0,generation=0;
-const fs=['thumb','index','middle','ring','pinky'],chains={thumb:[0,1,2,3,4],index:[0,5,6,7,8],middle:[0,9,10,11,12],ring:[0,13,14,15,16],pinky:[0,17,18,19,20]},track={Right:{base:null,candidate:null,since:0,last:null},Left:{base:null,candidate:null,since:0,last:null}};
-function maps(p){let root=document.querySelector('#'+p+'map');const defaults=[{from:1,to:3,text:'はい'},{from:4,to:4,text:'ありがとう'},{from:5,to:5,text:'おはよう'}];for(let i=1;i<=3;i++){let row=document.createElement('div');row.className='map';let lab=document.createElement('label');lab.textContent='項目'+i;let from=document.createElement('input');from.type='number';from.id=p+'from'+i;from.min=-10;from.max=10;from.step=1;from.value=defaults[i-1].from;from.setAttribute('aria-label','判定開始値');let to=document.createElement('input');to.type='number';to.id=p+'to'+i;to.min=-10;to.max=10;to.step=1;to.value=defaults[i-1].to;to.setAttribute('aria-label','判定終了値');let t=document.createElement('input');t.type='text';t.id=p+'t'+i;t.value=defaults[i-1].text;t.setAttribute('aria-label','読み上げる言葉');row.append(lab,from,to,t);root.append(row)}}maps('r');maps('l');
-function say(t){if(!document.querySelector('#voice').checked||!t.trim()||!window.speechSynthesis)return;speechSynthesis.cancel();let u=new SpeechSynthesisUtterance(t);u.lang='ja-JP';speechSynthesis.speak(u)}function mode(){return document.querySelector('[name=mode]:checked').value}
-function selected(){let o={};document.querySelectorAll('[data-f]').forEach(e=>o[e.dataset.f]=e.checked);return o}
-async function refresh(){try{let ds=await navigator.mediaDevices.enumerateDevices(),old=cams.value;cams.innerHTML='<option value="">自動選択</option>';ds.filter(d=>d.kind==='videoinput').forEach((d,i)=>{let o=document.createElement('option');o.value=d.deviceId;o.textContent=d.label||'カメラ '+(i+1);cams.append(o)});if([...cams.options].some(o=>o.value===old))cams.value=old;status.textContent='カメラ一覧を更新しました。'}catch(e){status.textContent='カメラ一覧を取得できません。HTTPSとカメラ許可を確認してください。'}}
-function models(){if(!faceModel){faceModel=new FaceMesh({locateFile:f=>'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/'+f});faceModel.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.5});faceModel.onResults(r=>faceData=r.multiFaceLandmarks?.[0]||null)}if(!handModel){handModel=new Hands({locateFile:f=>'https://cdn.jsdelivr.net/npm/@mediapipe/hands/'+f});handModel.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:.55,minTrackingConfidence:.5});handModel.onResults(r=>handData=(r.multiHandLandmarks||[]).map((lm,i)=>({lm,label:r.multiHandedness?.[i]?.label||'Unknown'})))}}
-async function stop(show=true){running=false;generation++;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;video.srcObject=null;if(show)status.textContent='カメラを停止しました。'}
-async function start(){await stop(false);let g=++generation;try{if(!navigator.mediaDevices?.getUserMedia)throw Error('HTTPSのURLで開いてください。');let selectedId=cams.value;try{stream=await navigator.mediaDevices.getUserMedia({audio:false,video:selectedId?{deviceId:{exact:selectedId},width:{ideal:1280},height:{ideal:720}}:{facingMode:'user',width:{ideal:1280},height:{ideal:720}}})}catch(e){if(!selectedId)throw e;stream=await navigator.mediaDevices.getUserMedia({audio:false,video:true})}if(g!==generation){stream?.getTracks().forEach(t=>t.stop());return}video.srcObject=stream;await video.play();running=true;let start=Date.now();while((!video.videoWidth||video.readyState<2)&&Date.now()-start<15000)await new Promise(r=>setTimeout(r,150));if(!video.videoWidth)throw Error('映像が準備できません。カメラ更新後、USBを抜き差ししてください。');models();await refresh();status.textContent='映像受信中。手を映して基準を設定してください。';requestAnimationFrame(loop)}catch(e){running=false;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;status.textContent='カメラを起動できません：'+(e.message||e.name)}}
-function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}function palm(l){return Math.max(.001,dist(l[5],l[17]))}
-function feature(l){let w=palm(l);return fs.map(f=>{let tip={thumb:4,index:8,middle:12,ring:16,pinky:20}[f],pip={thumb:2,index:6,middle:10,ring:14,pinky:18}[f];return (dist(l[tip],l[0])-dist(l[pip],l[0]))/w})}
-function level(l,side){let t=track[side],a=feature(l);if(!t.base){t.base=a.slice();document.querySelector('#'+(side==='Right'?'r':'l')+'c').textContent='基準：自動仮設定。握った形で0設定してください'}let delta=a.reduce((s,v,i)=>s+v-t.base[i],0)/a.length;
- // One level is an approximate 5 mm of movement, estimated as 6.25% of palm width.
- return Math.max(-10,Math.min(10,Math.round(delta/.0625)))}
-function calibrate(side){let h=handData.find(h=>h.label===side),p=side==='Right'?'r':'l';if(!h){status.textContent=(side==='Right'?'右手':'左手')+'が検出されません。手を映してください。';return}track[side].base=feature(h.lm);track[side].candidate=null;track[side].last=null;document.querySelector('#'+p+'c').textContent='基準：設定済み（この握った形＝0）';document.querySelector('#'+p+'v').textContent='0';document.querySelector('#'+p+'v').className='value neutral';document.querySelector('#'+p+'s').textContent='基準形を0に設定しました'}
-function speakIfMapped(side,n){let p=side==='Right'?'r':'l',t=track[side];if(n===0){t.candidate=null;t.last=null;return}let match=null;for(let i=1;i<=3;i++){let a=Math.max(-10,Math.min(10,Number(document.querySelector('#'+p+'from'+i).value))),b=Math.max(-10,Math.min(10,Number(document.querySelector('#'+p+'to'+i).value)));if(Number.isFinite(a)&&Number.isFinite(b)&&n>=Math.min(a,b)&&n<=Math.max(a,b)){match={id:i,text:document.querySelector('#'+p+'t'+i).value,a,b};break}}if(!match||!match.text.trim()){t.candidate=null;return}let key=match.id+'|'+match.a+'|'+match.b+'|'+match.text,now=performance.now();if(t.candidate!==key){t.candidate=key;t.since=now;return}if(now-t.since<Math.max(0,Math.min(2000,Number(document.querySelector('#stable').value)||0))||t.last===key)return;say(match.text);t.last=key}
-function display(side,n){let p=side==='Right'?'r':'l',el=document.querySelector('#'+p+'v');el.textContent=n>0?'+'+n:String(n);el.className='value '+(n>0?'plus':n<0?'minus':'neutral');document.querySelector('#'+p+'s').textContent=n===0?'基準の形に近い':n>0?'広げる方向':'握る方向';let b=document.querySelector('#'+p+'b');b.style.width=Math.abs(n)*10+'%';b.style.background=n>0?'#087b43':n<0?'#b42318':'#1769aa';speakIfMapped(side,n)}
-function line(a,b){ctx.beginPath();ctx.moveTo(a.x*canvas.width,a.y*canvas.height);ctx.lineTo(b.x*canvas.width,b.y*canvas.height);ctx.stroke()}function dot(p){ctx.beginPath();ctx.arc(p.x*canvas.width,p.y*canvas.height,3,0,Math.PI*2);ctx.fill()}
-function drawHand(l,side){let s=selected();ctx.strokeStyle=side==='Right'?'#00d084':'#ffb020';ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=2.5;[[0,1],[0,5],[0,9],[0,13],[0,17],[5,9],[9,13],[13,17]].forEach(a=>line(l[a[0]],l[a[1]]));fs.forEach(f=>{if(!s[f])return;let a=chains[f];for(let i=1;i<a.length;i++)line(l[a[i-1]],l[a[i]]);a.slice(1).forEach(i=>dot(l[i]))})}
-function drawFace(l){if(!l)return;ctx.strokeStyle='#45a3ff';ctx.lineWidth=1.3;[[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109,10],[33,160,158,133,153,144,33],[362,385,387,263,373,380,362],[61,146,91,181,84,17,314,405,321,375,291]].forEach(g=>{ctx.beginPath();g.forEach((i,j)=>j?ctx.lineTo(l[i].x*canvas.width,l[i].y*canvas.height):ctx.moveTo(l[i].x*canvas.width,l[i].y*canvas.height));ctx.stroke()})}
-async function loop(){if(!running)return;let now=performance.now();if(now-lastInfer>180&&video.readyState>=2){lastInfer=now;try{if(mode()!=='hand')await faceModel.send({image:video});if(mode()!=='face')await handModel.send({image:video})}catch(e){status.textContent='認識エラー。ネット接続を確認してください。'}}canvas.width=video.videoWidth||640;canvas.height=video.videoHeight||480;ctx.save();ctx.translate(canvas.width,0);ctx.scale(-1,1);ctx.drawImage(video,0,0,canvas.width,canvas.height);if(mode()!=='hand')drawFace(faceData);if(mode()!=='face'){let seen={Right:false,Left:false};handData.forEach(h=>{let side=h.label==='Right'?'Right':h.label==='Left'?'Left':null;if(!side)return;seen[side]=true;drawHand(h.lm,side);display(side,level(h.lm,side))});['Right','Left'].forEach(side=>{if(!seen[side]){document.querySelector('#'+(side==='Right'?'r':'l')+'s').textContent='未検出';track[side].candidate=null}})}ctx.restore();requestAnimationFrame(loop)}
-document.querySelector('#refresh').onclick=refresh;document.querySelector('#start').onclick=start;document.querySelector('#stop').onclick=()=>stop();document.querySelector('#test').onclick=()=>say('音声テストです');document.querySelector('#rcal').onclick=()=>calibrate('Right');document.querySelector('#lcal').onclick=()=>calibrate('Left');document.querySelector('#rrst').onclick=()=>{track.Right.base=null;track.Right.last=null;document.querySelector('#rc').textContent='基準：未設定'};document.querySelector('#lrst').onclick=()=>{track.Left.base=null;track.Left.last=null;document.querySelector('#lc').textContent='基準：未設定'};document.querySelectorAll('[name=mode]').forEach(e=>e.addEventListener('change',()=>{handData=[];faceData=null;Object.values(track).forEach(t=>{t.candidate=null;t.last=null})}));if(navigator.mediaDevices?.addEventListener)navigator.mediaDevices.addEventListener('devicechange',refresh);refresh();
-</script></body></html>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>画面録画アプリ</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#202124;background:#f4f6f8}
+*{box-sizing:border-box}
+body{margin:0;padding:24px}
+main{max-width:900px;margin:auto;background:#fff;border:1px solid #e1e5e9;border-radius:18px;padding:24px;box-shadow:0 5px 24px #17212b0d}
+h1{font-size:26px;margin:0 0 6px} .sub{color:#5f6368;margin:0 0 22px}
+.preview{width:100%;aspect-ratio:16/9;background:#101418;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;color:#b9c1ca}
+video{width:100%;height:100%;object-fit:contain;background:#101418}
+#camPreview{position:absolute;right:14px;bottom:14px;width:22%;height:auto;aspect-ratio:4/3;object-fit:cover;border:2px solid white;border-radius:9px;display:none}
+.statusrow{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:18px 0}
+.status{font-weight:700}.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#9aa0a6;margin-right:8px}
+.dot.rec{background:#d93025;box-shadow:0 0 0 4px #d9302520}
+#timer{font-size:24px;font-variant-numeric:tabular-nums;font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.panel{border:1px solid #e1e5e9;border-radius:12px;padding:16px}
+.panel h2{font-size:16px;margin:0 0 12px}
+label{display:flex;align-items:center;gap:9px;margin:10px 0;line-height:1.4}
+input[type=checkbox]{width:17px;height:17px}
+input[type=text]{width:100%;padding:11px;border:1px solid #c9ced6;border-radius:8px;font:inherit}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}
+button{border:0;border-radius:9px;padding:12px 18px;font:600 15px inherit;cursor:pointer;background:#e8eaed;color:#202124}
+button.primary{background:#1769d2;color:white}button.stop{background:#c5221f;color:white}
+button:disabled{opacity:.42;cursor:not-allowed}
+.note{font-size:13px;color:#5f6368;line-height:1.6}
+#message{min-height:24px;color:#b3261e;font-size:14px}
+#playback{width:100%;margin-top:12px;display:none}
+@media(max-width:650px){body{padding:10px}main{padding:16px}.grid{grid-template-columns:1fr}.statusrow{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<main>
+  <h1>画面録画アプリ</h1>
+  <p class="sub">画面・音声・Webカメラをまとめて録画します</p>
+
+  <div class="preview" id="previewArea">
+    <span id="previewText">録画を開始すると、ここにプレビューが表示されます</span>
+    <video id="livePreview" autoplay muted playsinline style="display:none"></video>
+    <video id="camPreview" autoplay muted playsinline></video>
+  </div>
+
+  <div class="statusrow">
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText">録画待機中</span></div>
+    <div id="timer">00:00:00</div>
+  </div>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>① 録画する画面</h2>
+      <p class="note">録画開始後にブラウザーの選択画面が開きます。画面全体・ウィンドウ・タブから選択してください。</p>
+      <label><input type="checkbox" id="systemAudio" checked> パソコンの音声も録音する（共有画面側で音声共有を選択）</label>
+    </section>
+    <section class="panel">
+      <h2>② 音声・カメラ</h2>
+      <label><input type="checkbox" id="micAudio"> マイクの声を録音する</label>
+      <label><input type="checkbox" id="webcam"> Webカメラ映像を画面に重ねる</label>
+      <p class="note">カメラ映像は録画画面の右下に表示されます。</p>
+    </section>
+    <section class="panel">
+      <h2>③ 保存設定</h2>
+      <label for="filename">保存するファイル名</label>
+      <input id="filename" type="text" value="画面録画">
+      <p class="note">保存形式：WebM（ブラウザー標準）。録画後にプレビューして保存できます。</p>
+    </section>
+    <section class="panel">
+      <h2>録画の操作</h2>
+      <p class="note">録画中は一時停止・再開ができます。</p>
+      <div class="actions" style="margin:0">
+        <button id="startBtn" class="primary">● 録画開始</button>
+        <button id="pauseBtn" disabled>一時停止</button>
+        <button id="stopBtn" class="stop" disabled>■ 停止</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="actions">
+    <button id="downloadBtn" class="primary" disabled>動画を保存</button>
+    <button id="resetBtn" disabled>新しく録画</button>
+  </div>
+  <video id="playback" controls playsinline></video>
+  <div id="message" role="status"></div>
+  <p class="note">
+    ※画面録画はChromeまたはEdgeで使用してください。録画開始時に画面共有の許可が必要です。<br>
+    ※パソコンの音声は、画面共有の選択画面で「音声を共有」などを有効にした場合に録音できます。OS・ブラウザー・選択した共有対象によっては録音できないことがあります。<br>
+    ※Webカメラとマイクは、ブラウザーの許可が必要です。録画データはこのアプリ内で処理し、外部サーバーには送信しません。
+  </p>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const startBtn=$('startBtn'), pauseBtn=$('pauseBtn'), stopBtn=$('stopBtn');
+  const downloadBtn=$('downloadBtn'), resetBtn=$('resetBtn');
+  const livePreview=$('livePreview'), camPreview=$('camPreview'), playback=$('playback');
+  const previewText=$('previewText'), dot=$('dot'), statusText=$('statusText'), timerEl=$('timer');
+  let displayStream=null, cameraStream=null, micStream=null, recorder=null;
+  let chunks=[], finalBlob=null, timerStart=0, elapsedBeforePause=0, timerInterval=null;
+  let mixedAudioContext=null, canvas=null, canvasStream=null, drawFrame=null, objectUrl=null;
+  let currentFileName='画面録画';
+
+  function setMessage(text, error=false){$('message').textContent=text; $('message').style.color=error?'#b3261e':'#137333'}
+  function fmt(ms){
+    const s=Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
+    return [h,m,sec].map(v=>String(v).padStart(2,'0')).join(':');
+  }
+  function elapsed(){return elapsedBeforePause+(recorder && recorder.state==='recording' ? Date.now()-timerStart : 0)}
+  function startClock(){timerStart=Date.now(); clearInterval(timerInterval); timerInterval=setInterval(()=>timerEl.textContent=fmt(elapsed()),200)}
+  function stopClock(){clearInterval(timerInterval);timerInterval=null;timerEl.textContent=fmt(elapsedBeforePause)}
+  function cleanup(){
+    clearInterval(timerInterval); timerInterval=null;
+    if(drawFrame) cancelAnimationFrame(drawFrame); drawFrame=null;
+    [displayStream,cameraStream,micStream,canvasStream].forEach(s=>{if(s) s.getTracks().forEach(t=>t.stop())});
+    displayStream=cameraStream=micStream=canvasStream=null;
+    if(mixedAudioContext){mixedAudioContext.close().catch(()=>{});mixedAudioContext=null}
+    livePreview.pause(); livePreview.srcObject=null; livePreview.style.display='none';
+    camPreview.pause(); camPreview.srcObject=null; camPreview.style.display='none';
+  }
+  function makeAudioMix(){
+    const audioTracks=[];
+    if(displayStream) audioTracks.push(...displayStream.getAudioTracks());
+    if(micStream) audioTracks.push(...micStream.getAudioTracks());
+    if(!audioTracks.length) return [];
+    mixedAudioContext=new (window.AudioContext||window.webkitAudioContext)();
+    const destination=mixedAudioContext.createMediaStreamDestination();
+    audioTracks.forEach(track=>{
+      const source=mixedAudioContext.createMediaStreamSource(new MediaStream([track]));
+      source.connect(destination);
+    });
+    return destination.stream.getAudioTracks();
+  }
+  function drawComposite(){
+    const ctx=canvas.getContext('2d');
+    const draw=()=>{
+      if(!canvas) return;
+      const w=canvas.width,h=canvas.height;
+      ctx.fillStyle='#101418';ctx.fillRect(0,0,w,h);
+      if(livePreview.readyState>=2){
+        const vw=livePreview.videoWidth||w, vh=livePreview.videoHeight||h;
+        const scale=Math.min(w/vw,h/vh), dw=vw*scale, dh=vh*scale;
+        ctx.drawImage(livePreview,(w-dw)/2,(h-dh)/2,dw,dh);
+      }
+      if(cameraStream && camPreview.readyState>=2){
+        const cw=Math.round(w*.22), ch=Math.round(cw*3/4), x=w-cw-24, y=h-ch-24;
+        ctx.save();ctx.fillStyle='#fff';ctx.beginPath();ctx.roundRect(x-5,y-5,cw+10,ch+10,14);ctx.fill();
+        ctx.beginPath();ctx.roundRect(x,y,cw,ch,10);ctx.clip();ctx.drawImage(camPreview,x,y,cw,ch);ctx.restore();
+      }
+      drawFrame=requestAnimationFrame(draw);
+    };
+    draw();
+  }
+  function chooseMime(){
+    const candidates=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+    return candidates.find(t=>MediaRecorder.isTypeSupported(t))||'';
+  }
+
+  startBtn.addEventListener('click', async()=>{
+    setMessage('');
+    if(!navigator.mediaDevices?.getDisplayMedia){setMessage('このブラウザーでは画面録画に対応していません。最新のChromeまたはEdgeを使用してください。',true);return}
+    startBtn.disabled=true;
+    try{
+      displayStream=await navigator.mediaDevices.getDisplayMedia({
+        video:{frameRate:{ideal:30,max:30}},
+        audio:$('systemAudio').checked
+      });
+      livePreview.srcObject=displayStream;
+      livePreview.style.display='block';
+      previewText.style.display='none';
+      await livePreview.play();
+
+      if($('webcam').checked){
+        cameraStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+        camPreview.srcObject=cameraStream;camPreview.style.display='block';
+        await camPreview.play();
+      }
+      if($('micAudio').checked){
+        micStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+      }
+
+      let videoTrack;
+      if(cameraStream){
+        canvas=document.createElement('canvas');
+        canvas.width=1280;canvas.height=720;
+        drawComposite();
+        canvasStream=canvas.captureStream(30);
+        videoTrack=canvasStream.getVideoTracks()[0];
+      }else{
+        videoTrack=displayStream.getVideoTracks()[0];
+      }
+      const audioTracks=makeAudioMix();
+      const recordStream=new MediaStream([videoTrack,...audioTracks]);
+      const mimeType=chooseMime();
+      recorder=new MediaRecorder(recordStream,mimeType?{mimeType}:undefined);
+      chunks=[]; finalBlob=null;
+      recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+      recorder.onerror=e=>setMessage('録画中にエラーが発生しました。'+(e.error?.message||''),true);
+      recorder.onstop=()=>{
+        finalBlob=new Blob(chunks,{type:recorder.mimeType||'video/webm'});
+        if(objectUrl) URL.revokeObjectURL(objectUrl);
+        objectUrl=URL.createObjectURL(finalBlob);
+        playback.src=objectUrl;playback.style.display='block';
+        downloadBtn.disabled=false;resetBtn.disabled=false;
+        statusText.textContent='録画完了';dot.classList.remove('rec');
+        setMessage('録画が完了しました。プレビューを確認して「動画を保存」を押してください。');
+        cleanup();
+        startBtn.disabled=true;pauseBtn.disabled=true;stopBtn.disabled=true;
+      };
+      displayStream.getVideoTracks()[0].addEventListener('ended',()=>{
+        if(recorder && recorder.state!=='inactive') recorder.stop();
+      });
+      recorder.start(1000);
+      elapsedBeforePause=0;timerEl.textContent='00:00:00';startClock();
+      statusText.textContent='録画中';dot.classList.add('rec');
+      pauseBtn.disabled=false;stopBtn.disabled=false;
+      setMessage('録画中です。画面共有を終了すると録画も停止します。');
+    }catch(err){
+      cleanup();startBtn.disabled=false;
+      if(err.name==='NotAllowedError')setMessage('画面共有またはカメラ・マイクの許可がキャンセルされました。設定を確認して再度お試しください。',true);
+      else setMessage('開始できませんでした：'+err.message,true);
+      statusText.textContent='録画待機中';dot.classList.remove('rec');
+    }
+  });
+
+  pauseBtn.addEventListener('click',()=>{
+    if(!recorder)return;
+    if(recorder.state==='recording'){
+      recorder.pause();elapsedBeforePause+=Date.now()-timerStart;stopClock();
+      pauseBtn.textContent='録画を再開';statusText.textContent='一時停止中';dot.classList.remove('rec');
+    }else if(recorder.state==='paused'){
+      recorder.resume();startClock();
+      pauseBtn.textContent='一時停止';statusText.textContent='録画中';dot.classList.add('rec');
+    }
+  });
+  stopBtn.addEventListener('click',()=>{
+    if(recorder && recorder.state!=='inactive'){elapsedBeforePause=elapsed();stopClock();recorder.stop()}
+  });
+  downloadBtn.addEventListener('click',()=>{
+    if(!finalBlob)return;
+    const base=($('filename').value.trim()||'画面録画').replace(/[\\/:*?"<>|]/g,'_');
+    const a=document.createElement('a');a.href=objectUrl;a.download=base+'.webm';
+    document.body.appendChild(a);a.click();a.remove();
+  });
+  resetBtn.addEventListener('click',()=>{
+    if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null}
+    playback.pause();playback.removeAttribute('src');playback.load();playback.style.display='none';
+    previewText.style.display='block';downloadBtn.disabled=true;resetBtn.disabled=true;
+    startBtn.disabled=false;pauseBtn.disabled=true;stopBtn.disabled=true;
+    pauseBtn.textContent='一時停止';statusText.textContent='録画待機中';dot.classList.remove('rec');
+    timerEl.textContent='00:00:00';elapsedBeforePause=0;chunks=[];finalBlob=null;recorder=null;canvas=null;
+    setMessage('');
+  });
+})();
+</script>
+</body>
+</html>
